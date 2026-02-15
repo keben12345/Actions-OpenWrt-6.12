@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Jcg-q30-6.12
+name: xr30-6.12
 
 on:
   schedule:
@@ -240,4 +240,5 @@ jobs:
     - name: PUSHPLUS Message
       if: env.SERVERCHAN_SCKEY == 'true'
       run: |
+
         curl -k --data token="${{ secrets.PUSH_PLUS_TOKEN }}" --data title="恭喜主人$RELEASE_TAG-$(date +"%Y.%m.%d-%H%M")固件编译成功！" --data "content=我亲爱的主人您要编译的$RELEASE_TAG-$(date +"%Y.%m.%d-%H%M")固件成功完成了！" "http://www.pushplus.plus/send"
