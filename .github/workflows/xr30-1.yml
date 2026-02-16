@@ -62,18 +62,15 @@ jobs:
     # =============================
     - name: Add RAX3000M UBI Device
       run: |
-        cat << 'EOF' >> source/target/linux/mediatek/image/filogic.mk
-
-        define Device/cmcc_rax3000m-ubi
-        $(call Device/cmcc_rax3000m)
-        KERNEL := kernel-bin
-        IMAGE/sysupgrade.bin := append-kernel | ubinize-image | append-metadata
-        IMAGES := sysupgrade.bin
-     endef
-
-     TARGET_DEVICES += cmcc_rax3000m-ubi
-
-     EOF
+       cat << 'EOF' >> source/target/linux/mediatek/image/filogic.mk
+       define Device/cmcc_rax3000m-ubi
+         $(call Device/cmcc_rax3000m)
+         KERNEL := kernel-bin
+         IMAGE/sysupgrade.bin := append-kernel | ubinize-image | append-metadata
+         IMAGES := sysupgrade.bin
+       endef
+       TARGET_DEVICES += cmcc_rax3000m-ubi
+       EOF
 
     # =============================
     # 加载配置
