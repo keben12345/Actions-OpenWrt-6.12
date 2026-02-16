@@ -120,6 +120,10 @@ jobs:
 
     - name: Install feeds
       run: cd openwrt && ./scripts/feeds install -a
+    - name: Apply RAX3000M bin firmware patch
+      run: |
+          echo "Applying RAX3000M bin patch..."
+          patch -p1 < patches/001-rax3000m-bin.patch
 
     - name: Load custom configuration
       run: |
@@ -242,6 +246,7 @@ jobs:
       run: |
 
         curl -k --data token="${{ secrets.PUSH_PLUS_TOKEN }}" --data title="恭喜主人$RELEASE_TAG-$(date +"%Y.%m.%d-%H%M")固件编译成功！" --data "content=我亲爱的主人您要编译的$RELEASE_TAG-$(date +"%Y.%m.%d-%H%M")固件成功完成了！" "http://www.pushplus.plus/send"
+
 
 
 
