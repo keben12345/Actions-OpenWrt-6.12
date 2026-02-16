@@ -1,4 +1,4 @@
-name: Build RAX3000M (Breed BIN)
+name: Build XR30 NAND Firmware
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ env:
   REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase.git
   REPO_BRANCH: 25.12-dev
   CONFIG_FILE: xr30-1.config
+  RELEASE_TAG: xr30-6.12
   TZ: Asia/Shanghai
 
 jobs:
@@ -14,80 +15,76 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      - name: Checkout
-        uses: actions/checkout@v4
+    # ==============================
+    # 清理空间（防止磁盘不足）
+    # ==============================
+    - name: Free Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        sudo docker image prune -a -f
+        df -h
 
-      - name: Initialization environment
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential clang flex bison g++ gawk \
-          gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
-          python3-distutils rsync unzip zlib1g-dev file wget
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential clang flex bison g++ gawk \
+        gcc-multilib g++-multilib gettext git libncurses5-dev \
+        libssl-dev python3-distutils rsync unzip zlib1g-dev \
+        file wget
 
-      - name: Clone source code
-        run: |
-          git clone $REPO_URL -b $REPO_BRANCH openwrt
+    - name: Clone Source
+      run: |
+        git clone --depth=1 $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf $GITHUB_WORKSPACE/openwrt $GITHUB_WORKSPACE/source
 
-      - name: Update feeds
-        run: |
-          cd openwrt
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+    - name: Update Feeds
+      working-directory: source
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
 
-      ###################################################
-      # 🔧 关键：改 RAX3000M 生成 BIN
-      ###################################################
-      - name: Modify RAX3000M to sysupgrade.bin (Breed)
-        run: |
-          cd openwrt
-          echo "Switching RAX3000M from itb to bin..."
+    - name: Load Config
+      run: |
+        mv $CONFIG_FILE source/.config
 
-          sed -i '/define Device\/cmcc_rax3000m_common/,/endef/ s/KERNEL := kernel-bin | gzip/KERNEL := kernel-bin | lzma/' target/linux/mediatek/image/filogic.mk
+    - name: Download DL Packages
+      working-directory: source
+      run: make defconfig
 
-          sed -i '/define Device\/cmcc_rax3000m_common/,/endef/ s/IMAGES := sysupgrade.itb/IMAGES := sysupgrade.bin/' target/linux/mediatek/image/filogic.mk
+    - name: Download Source
+      working-directory: source
+      run: make download -j8
 
-          sed -i '/define Device\/cmcc_rax3000m_common/,/endef/ s/IMAGE\/sysupgrade.itb/IMAGE\/sysupgrade.bin/' target/linux/mediatek/image/filogic.mk
+    # ==============================
+    # 编译
+    # ==============================
+    - name: Build Firmware
+      working-directory: source
+      run: |
+        make -j$(nproc) || make -j1 V=s
 
-          sed -i '/define Device\/cmcc_rax3000m_common/,/endef/ s/fit gzip.*external-static-with-rootfs/append-rootfs/' target/linux/mediatek/image/filogic.mk
+    # ==============================
+    # 重命名为 RAX3000M-Breed.bin
+    # 本质仍是 UBI sysupgrade 镜像
+    # ==============================
+    - name: Rename Firmware
+      run: |
+        cd source/bin/targets/*/*/
+        FILE=$(ls *sysupgrade.bin)
+        cp $FILE RAX3000M-Breed.bin
+        ls -lh
 
-      ###################################################
-
-      - name: Load config
-        run: |
-          cd openwrt
-          cp ../$CONFIG_FILE .config
-          make defconfig
-
-      - name: Download packages
-        run: |
-          cd openwrt
-          make download -j8
-
-      - name: Compile firmware
-        run: |
-          cd openwrt
-          make -j$(nproc)
-
-      ###################################################
-      # 🔥 编译后处理
-      ###################################################
-      - name: Post process firmware
-        run: |
-          cd openwrt/bin/targets/*/*
-
-          echo "Removing ITB images..."
-          rm -f *itb*
-
-          echo "Renaming BIN..."
-          for f in *sysupgrade.bin; do
-            mv "$f" RAX3000M-Breed.bin
-          done
-
-          ls -lh
-
-      - name: Upload firmware
-        uses: actions/upload-artifact@v4
-        with:
-          name: RAX3000M-Breed-Firmware
-          path: openwrt/bin/targets/*/*/*.bin
+    # ==============================
+    # 上传固件
+    # ==============================
+    - name: Upload Firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: RAX3000M-NAND-Firmware
+        path: source/bin/targets/*/*/*.bin
