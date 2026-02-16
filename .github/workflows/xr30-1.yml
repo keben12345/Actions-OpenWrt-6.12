@@ -73,12 +73,26 @@ jobs:
     # 重命名为 RAX3000M-Breed.bin
     # 本质仍是 UBI sysupgrade 镜像
     # ==============================
-    - name: Rename Firmware
+    - name: Rename Firmware (Safe)
       run: |
-        cd source/bin/targets/*/*/
-        FILE=$(ls *sysupgrade.bin)
-        cp $FILE RAX3000M-Breed.bin
-        ls -lh
+       echo "Searching for sysupgrade firmware..."
+
+       FILE=$(find source/bin/targets -type f -name "*sysupgrade.bin" | head -n 1)
+
+       if [ -z "$FILE" ]; then
+       echo "ERROR: sysupgrade.bin not found!"
+       echo "Listing targets directory:"
+       ls -R source/bin/targets || true
+       exit 1
+       fi
+
+       echo "Found firmware:"
+       echo $FILE
+
+       cp "$FILE" source/bin/targets/RAX3000M-Breed.bin
+
+       ls -lh source/bin/targets/
+
 
     # ==============================
     # 上传固件
