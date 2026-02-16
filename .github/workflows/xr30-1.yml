@@ -1,4 +1,4 @@
-name: Build XR30 NAND Firmware
+name: Build RAX3000M 25.12 NAND (Breed UBI)
 
 on:
   workflow_dispatch:
@@ -7,7 +7,6 @@ env:
   REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase.git
   REPO_BRANCH: 25.12-dev
   CONFIG_FILE: xr30-1.config
-  RELEASE_TAG: xr30-6.12
   TZ: Asia/Shanghai
 
 jobs:
@@ -15,21 +14,25 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+
     - name: Checkout
       uses: actions/checkout@v4
 
     # ==============================
-    # 清理空间（防止磁盘不足）
+    # 清理磁盘空间
     # ==============================
     - name: Free Disk Space
       run: |
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf /opt/ghc
-        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/local/lib/android
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
         sudo docker image prune -a -f
         df -h
 
+    # ==============================
+    # 安装依赖
+    # ==============================
     - name: Install Dependencies
       run: |
         sudo apt update
@@ -38,25 +41,53 @@ jobs:
         libssl-dev python3-distutils rsync unzip zlib1g-dev \
         file wget
 
+    # ==============================
+    # 克隆源码
+    # ==============================
     - name: Clone Source
       run: |
-        git clone --depth=1 $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf $GITHUB_WORKSPACE/openwrt $GITHUB_WORKSPACE/source
+        git clone --depth=1 $REPO_URL -b $REPO_BRANCH source
 
+    # ==============================
+    # 更新 feeds
+    # ==============================
     - name: Update Feeds
       working-directory: source
       run: |
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
+    # ==============================
+    # 强制关闭 FIT，恢复 NAND UBI
+    # ==============================
+    - name: Force NAND UBI (Disable FIT)
+      run: |
+        cd source/target/linux/mediatek/image
+
+        echo "==== BEFORE PATCH ===="
+        grep -n "fit" filogic.mk || true
+
+        # 关闭 fit 内核
+        sed -i 's/kernel-bin | lzma | fit/kernel-bin/g' filogic.mk
+
+        # 删除 itb 相关规则
+        sed -i '/sysupgrade.itb/d' filogic.mk
+        sed -i '/append-metadata.*itb/d' filogic.mk
+
+        echo "==== AFTER PATCH ===="
+        grep -n "fit" filogic.mk || true
+
+    # ==============================
+    # 加载配置
+    # ==============================
     - name: Load Config
       run: |
         mv $CONFIG_FILE source/.config
+        make -C source defconfig
 
-    - name: Download DL Packages
-      working-directory: source
-      run: make defconfig
-
+    # ==============================
+    # 下载源码
+    # ==============================
     - name: Download Source
       working-directory: source
       run: make download -j8
@@ -70,29 +101,31 @@ jobs:
         make -j$(nproc) || make -j1 V=s
 
     # ==============================
-    # 重命名为 RAX3000M-Breed.bin
-    # 本质仍是 UBI sysupgrade 镜像
+    # 调试输出
     # ==============================
-    - name: Rename Firmware (Safe)
+    - name: Show Target Files
       run: |
-       echo "Searching for sysupgrade firmware..."
+        echo "==== TARGET FILES ===="
+        ls -R source/bin/targets || true
 
-       FILE=$(find source/bin/targets -type f -name "*sysupgrade.bin" | head -n 1)
+    # ==============================
+    # 查找 sysupgrade.bin
+    # ==============================
+    - name: Rename Firmware
+      run: |
+        FILE=$(find source/bin/targets -type f -name "*sysupgrade.bin" | head -n 1)
 
-       if [ -z "$FILE" ]; then
-       echo "ERROR: sysupgrade.bin not found!"
-       echo "Listing targets directory:"
-       ls -R source/bin/targets || true
-       exit 1
-       fi
+        if [ -z "$FILE" ]; then
+          echo "ERROR: sysupgrade.bin not found!"
+          exit 1
+        fi
 
-       echo "Found firmware:"
-       echo $FILE
+        echo "Found firmware:"
+        echo $FILE
 
-       cp "$FILE" source/bin/targets/RAX3000M-Breed.bin
+        cp "$FILE" source/bin/targets/RAX3000M-Breed.bin
 
-       ls -lh source/bin/targets/
-
+        ls -lh source/bin/targets/
 
     # ==============================
     # 上传固件
@@ -100,5 +133,5 @@ jobs:
     - name: Upload Firmware
       uses: actions/upload-artifact@v4
       with:
-        name: RAX3000M-NAND-Firmware
-        path: source/bin/targets/*/*/*.bin
+        name: RAX3000M-25.12-NAND-Breed
+        path: source/bin/targets/**/*.bin
