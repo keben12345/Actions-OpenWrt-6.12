@@ -1,0 +1,116 @@
+name: Build RAX3000M 25.12 Stable
+
+on:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase.git
+  REPO_BRANCH: 25.12-dev
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Free Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android "$AGENT_TOOLSDIRECTORY"
+        sudo docker image prune -a -f
+        df -h
+
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          build-essential clang flex bison g++ gawk \
+          gcc-multilib g++-multilib gettext git libncurses5-dev \
+          libssl-dev python3-distutils rsync unzip zlib1g-dev \
+          file wget swig u-boot-tools mtd-utils
+
+    - name: Clone Source
+      run: |
+        git clone --depth=1 $REPO_URL -b $REPO_BRANCH source
+
+    - name: Update Feeds
+      working-directory: source
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    # ===============================
+    # 自动添加 factory.bin 规则
+    # ===============================
+    - name: Enable factory image
+      working-directory: source
+      run: |
+        FILE=target/linux/mediatek/image/filogic.mk
+
+        sed -i '/define Device\/cmcc_rax3000m/,/endef/{
+          /IMAGE\/sysupgrade.bin/a\
+        IMAGE/factory.bin := append-kernel | append-rootfs | pad-rootfs | append-metadata
+        }' $FILE
+
+        echo "Patched Device section:"
+        sed -n '/define Device\/cmcc_rax3000m/,/endef/p' $FILE
+
+    # ===============================
+    # 生成干净配置（不使用旧config）
+    # ===============================
+    - name: Generate Clean Config
+      working-directory: source
+      run: |
+       make defconfig
+
+       # 选择设备
+       ./scripts/config set TARGET_mediatek=y
+       ./scripts/config set TARGET_mediatek_filogic=y
+       ./scripts/config set TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m=y
+       ./scripts/config unset TARGET_ALL_PROFILES
+
+       # LuCI
+       ./scripts/config set PACKAGE_luci=y
+       ./scripts/config set PACKAGE_luci-ssl=y
+
+       # OpenClash
+        ./scripts/config set PACKAGE_luci-app-openclash=y
+
+       # Passwall
+       ./scripts/config set PACKAGE_luci-app-passwall=y
+
+       # 常用依赖（强烈建议）
+       ./scripts/config set PACKAGE_ip-full=y
+       ./scripts/config set PACKAGE_kmod-tun=y
+       ./scripts/config set PACKAGE_kmod-nft-tproxy=y
+       ./scripts/config set PACKAGE_dnsmasq-full=y
+
+       make defconfig
+
+       echo "Selected target:"
+       grep CONFIG_TARGET_mediatek .config
+
+
+    - name: Download Sources
+      working-directory: source
+      run: make download -j8
+
+    - name: Build Firmware
+      working-directory: source
+      run: |
+        make -j$(nproc) || make -j1 V=s
+
+    - name: Show Output
+      run: |
+        ls -lh source/bin/targets/mediatek/filogic/
+
+    - name: Upload Firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: RAX3000M-25.12-Firmware
+        path: |
+          source/bin/targets/mediatek/filogic/*factory.bin
+          source/bin/targets/mediatek/filogic/*sysupgrade.bin
