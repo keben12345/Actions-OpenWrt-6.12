@@ -9,7 +9,7 @@ on:
         default: "xr30-1.config"
         type: choice
         options:
-          - rax3000m.config
+          - xr30-1.config
           - rax3000m-ubi.config
           - rax3000m-nand.config
           - test.config
