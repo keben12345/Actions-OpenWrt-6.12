@@ -64,46 +64,35 @@ jobs:
     - name: Generate Clean Config
       working-directory: source
       run: |
-       # 生成基础配置
        make defconfig
 
-       # ===== 选择目标 =====
-       cat <<EOF >> .config
-       CONFIG_TARGET_mediatek=y
-       CONFIG_TARGET_mediatek_filogic=y
-       CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m=y
-       # CONFIG_TARGET_ALL_PROFILES is not set
-         EOF
+       # 设备
+       echo "CONFIG_TARGET_mediatek=y" >> .config
+       echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
+       echo "CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m=y" >> .config
+       echo "# CONFIG_TARGET_ALL_PROFILES is not set" >> .config
 
-       # ===== LuCI =====
-         cat <<EOF >> .config
-         CONFIG_PACKAGE_luci=y
-         CONFIG_PACKAGE_luci-ssl=y
-         EOF
+       # LuCI
+       echo "CONFIG_PACKAGE_luci=y" >> .config
+       echo "CONFIG_PACKAGE_luci-ssl=y" >> .config
 
-       # ===== OpenClash =====
-        cat <<EOF >> .config
-        CONFIG_PACKAGE_luci-app-openclash=y
-        EOF
+       # OpenClash
+       echo "CONFIG_PACKAGE_luci-app-openclash=y" >> .config
 
-       # ===== Passwall =====
-        cat <<EOF >> .config
-        CONFIG_PACKAGE_luci-app-passwall=y
-        EOF
+       # Passwall
+       echo "CONFIG_PACKAGE_luci-app-passwall=y" >> .config
 
-       # ===== 常用依赖 =====
-        cat <<EOF >> .config
-        CONFIG_PACKAGE_ip-full=y
-        CONFIG_PACKAGE_kmod-tun=y
-        CONFIG_PACKAGE_kmod-nft-tproxy=y
-        CONFIG_PACKAGE_dnsmasq-full=y
-        EOF
+       # 依赖
+       echo "CONFIG_PACKAGE_ip-full=y" >> .config
+       echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
+       echo "CONFIG_PACKAGE_kmod-nft-tproxy=y" >> .config
+       echo "CONFIG_PACKAGE_dnsmasq-full=y" >> .config
 
-       # 整理配置
-        make defconfig
+       make defconfig
 
-        echo "Selected target:"
-        grep CONFIG_TARGET_mediatek .config
+       echo "==== TARGET CHECK ===="
+       grep CONFIG_TARGET_mediatek .config
+
 
 
     - name: Download Sources
