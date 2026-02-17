@@ -111,7 +111,8 @@ jobs:
     - name: Upload Firmware
       uses: actions/upload-artifact@v4
       with:
-        name: RAX3000M-25.12-Firmware
-        path: |
-          source/bin/targets/mediatek/filogic/*factory.bin
-          source/bin/targets/mediatek/filogic/*sysupgrade.bin
+       name: RAX3000M-25.12-Firmware
+       path: |
+        source/bin/targets/mediatek/filogic/*rax3000m*.itb
+        source/bin/targets/mediatek/filogic/*.manifest
+        source/bin/targets/mediatek/filogic/sha256sums
