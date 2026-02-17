@@ -1,18 +1,17 @@
-name: Build ImmortalWrt (Selectable Config)
+name: ImmortalWrt Build (Pro)
 
 on:
   workflow_dispatch:
     inputs:
       config_file:
-        description: "选择要编译的配置文件"
+        description: "选择配置文件"
         required: true
         default: "xr30-1.config"
         type: choice
         options:
           - xr30-1.config
-          - rax3000m-ubi.config
           - rax3000m-nand.config
-          - test.config
+          - rax3000m-ubi.config
 
 env:
   REPO_URL: https://github.com/chasey-dev/immortalwrt-mt798x-rebase.git
@@ -24,43 +23,97 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout repository
+
+    # 1️⃣ 清理系统空间
+    - name: Free Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo docker image prune -af
+        df -h
+
+    # 2️⃣ 拉取仓库
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install dependencies
+    # 3️⃣ 安装依赖
+    - name: Install Dependencies
       run: |
         sudo apt update
         sudo apt install -y build-essential clang flex bison g++ gawk \
         gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
-        python3-distutils rsync unzip zlib1g-dev file wget
+        python3-distutils rsync unzip zlib1g-dev file wget ccache
 
+    # 4️⃣ 生成版本号
+    - name: Generate Version
+      id: version
+      run: |
+        DATE=$(date +"%Y%m%d")
+        SHORT_SHA=$(git rev-parse --short HEAD)
+        echo "VERSION=${DATE}-${SHORT_SHA}" >> $GITHUB_ENV
+        echo "version=${DATE}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+    # 5️⃣ 克隆源码
     - name: Clone ImmortalWrt
       run: |
         git clone --depth 1 $REPO_URL -b $REPO_BRANCH source
 
-    - name: Load selected config
+    # 6️⃣ 缓存 dl 和 ccache
+    - name: Cache DL
+      uses: actions/cache@v4
+      with:
+        path: source/dl
+        key: dl-${{ env.REPO_BRANCH }}
+
+    - name: Cache ccache
+      uses: actions/cache@v4
+      with:
+        path: ~/.ccache
+        key: ccache-${{ env.REPO_BRANCH }}
+
+    # 7️⃣ 加载配置
+    - name: Load Selected Config
       run: |
         cp configs/${{ github.event.inputs.config_file }} source/.config
         cd source
         make oldconfig
 
-    - name: Download packages
+    # 8️⃣ 下载源码
+    - name: Download Packages
       run: |
         cd source
         make download -j8
 
-    - name: Build firmware
+    # 9️⃣ 编译
+    - name: Build Firmware
       run: |
+        export CCACHE_DIR=~/.ccache
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         cd source
         make -j$(nproc)
 
-    - name: Show firmware output
+    # 🔟 显示输出
+    - name: Show Output
       run: |
         find source/bin/targets -type f -name "*.itb"
         find source/bin/targets -type f -name "*.bin"
 
-    - name: Upload firmware
+    # 1️⃣1️⃣ 重命名固件
+    - name: Rename Firmware
+      run: |
+        mkdir output
+        find source/bin/targets -type f \( -name "*.itb" -o -name "*.bin" \) -exec cp {} output/ \;
+        cd output
+        for f in *; do
+          mv "$f" "${f%.itb}-${{ steps.version.outputs.version }}.itb" 2>/dev/null || true
+          mv "$f" "${f%.bin}-${{ steps.version.outputs.version }}.bin" 2>/dev/null || true
+        done
+
+    # 1️⃣2️⃣ 上传固件
+    - name: Upload Firmware
       uses: actions/upload-artifact@v4
       with:
-        name: Firmware-${{ github.event.inputs.config_file }}
-        path: source/bin/targets/
+        name: Firmware-${{ github.event.inputs.config_file }}-${{ steps.version.outputs.version }}
+        path: output/
