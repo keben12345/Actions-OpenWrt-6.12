@@ -77,14 +77,14 @@ jobs:
 
         echo "Create UBI config..."
         cat << EOF > ubi.cfg
-[ubifs]
-mode=ubi
-image=rootfs.bin
-vol_id=0
-vol_type=dynamic
-vol_name=rootfs
-vol_flags=autoresize
-EOF
+        [ubifs]
+        mode=ubi
+        image=rootfs.bin
+        vol_id=0
+        vol_type=dynamic
+        vol_name=rootfs
+        vol_flags=autoresize
+        EOF
 
         echo "Generate UBI image..."
         ubinize -o RAX3000M-Breed.bin \
