@@ -64,34 +64,46 @@ jobs:
     - name: Generate Clean Config
       working-directory: source
       run: |
+       # 生成基础配置
        make defconfig
 
-       # 选择设备
-       ./scripts/config set TARGET_mediatek=y
-       ./scripts/config set TARGET_mediatek_filogic=y
-       ./scripts/config set TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m=y
-       ./scripts/config unset TARGET_ALL_PROFILES
+       # ===== 选择目标 =====
+       cat <<EOF >> .config
+       CONFIG_TARGET_mediatek=y
+       CONFIG_TARGET_mediatek_filogic=y
+       CONFIG_TARGET_mediatek_filogic_DEVICE_cmcc_rax3000m=y
+       # CONFIG_TARGET_ALL_PROFILES is not set
+         EOF
 
-       # LuCI
-       ./scripts/config set PACKAGE_luci=y
-       ./scripts/config set PACKAGE_luci-ssl=y
+       # ===== LuCI =====
+         cat <<EOF >> .config
+         CONFIG_PACKAGE_luci=y
+         CONFIG_PACKAGE_luci-ssl=y
+         EOF
 
-       # OpenClash
-        ./scripts/config set PACKAGE_luci-app-openclash=y
+       # ===== OpenClash =====
+        cat <<EOF >> .config
+        CONFIG_PACKAGE_luci-app-openclash=y
+        EOF
 
-       # Passwall
-       ./scripts/config set PACKAGE_luci-app-passwall=y
+       # ===== Passwall =====
+        cat <<EOF >> .config
+        CONFIG_PACKAGE_luci-app-passwall=y
+        EOF
 
-       # 常用依赖（强烈建议）
-       ./scripts/config set PACKAGE_ip-full=y
-       ./scripts/config set PACKAGE_kmod-tun=y
-       ./scripts/config set PACKAGE_kmod-nft-tproxy=y
-       ./scripts/config set PACKAGE_dnsmasq-full=y
+       # ===== 常用依赖 =====
+        cat <<EOF >> .config
+        CONFIG_PACKAGE_ip-full=y
+        CONFIG_PACKAGE_kmod-tun=y
+        CONFIG_PACKAGE_kmod-nft-tproxy=y
+        CONFIG_PACKAGE_dnsmasq-full=y
+        EOF
 
-       make defconfig
+       # 整理配置
+        make defconfig
 
-       echo "Selected target:"
-       grep CONFIG_TARGET_mediatek .config
+        echo "Selected target:"
+        grep CONFIG_TARGET_mediatek .config
 
 
     - name: Download Sources
